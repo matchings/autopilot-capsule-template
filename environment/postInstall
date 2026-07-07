@@ -2,8 +2,13 @@
 set -euo pipefail
 
 # --- Python scientific stack (used by both interactive work and analysis mode)
+# The Jupyter/VS Code kernel in this capsule runs from /root/capsule/.venv, so
+# install there when it exists; otherwise fall back to the system interpreter.
+VENV_PY="/root/capsule/.venv/bin/python"
 if [ -f /requirements.txt ]; then
-  if command -v uv >/dev/null 2>&1; then
+  if [ -x "${VENV_PY}" ]; then
+    "${VENV_PY}" -m pip install --no-cache-dir -r /requirements.txt
+  elif command -v uv >/dev/null 2>&1; then
     uv pip install --system -r /requirements.txt
   else
     pip install --no-cache-dir -r /requirements.txt

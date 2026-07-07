@@ -16,6 +16,9 @@ papermill
 pynwb
 hdmf
 h5py
+# HED event/interval tables in the behavior NWBs were written with ndx-events 0.4.0.
+# Newer releases made MeaningsTable.target required and break reading these files.
+ndx-events==0.4.0
 
 # HCR cell-by-gene tables
 anndata
