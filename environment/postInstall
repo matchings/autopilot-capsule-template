@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-curl -fsSL https://claude.ai/install.sh | bash
+# --- Python scientific stack (used by both interactive work and analysis mode)
+if [ -f /requirements.txt ]; then
+  if command -v uv >/dev/null 2>&1; then
+    uv pip install --system -r /requirements.txt
+  else
+    pip install --no-cache-dir -r /requirements.txt
+  fi
+fi
+
+# --- Claude Code CLI (only needed for optional agent mode / interactive terminal use)
+# Installed unconditionally so it is available if wanted; it needs no key to install.
+curl -fsSL https://claude.ai/install.sh | bash || {
+  echo "WARN: Claude CLI install failed; agent mode will be unavailable, analysis mode still works." >&2
+}
 
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 export PATH="$HOME/.local/bin:$PATH"
 
-claude --version
+claude --version || echo "WARN: claude CLI not on PATH; agent mode unavailable."

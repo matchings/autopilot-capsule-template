@@ -1,10 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =============================================================================
+# Capsule entry point for REPRODUCIBLE RUNS.
+#
+# Two modes, selected by --mode (App Panel field: "mode"):
+#
+#   analysis  (DEFAULT)  Runs your own analysis code. NO Anthropic API key
+#                        required. Executes code/run_analysis if it exists,
+#                        which by default runs every notebook in
+#                        code/notebooks/ and writes rendered copies to results/.
+#
+#   agent                Runs the Claude Code CLI headlessly against --prompt.
+#                        REQUIRES the ANTHROPIC_API_KEY secret (or Bedrock).
+#                        Optional; only advanced users who want autonomous
+#                        agent runs need this.
+#
+# Interactive work (VS Code / JupyterLab cloud workstation) does NOT use this
+# script and never needs a key. See README.md.
+# =============================================================================
+
 export UV_CACHE_DIR=/root/capsule/scratch/.cache
 export PATH="/root/.local/bin:${HOME:-/root}/.local/bin:$PATH"
 mkdir -p "${UV_CACHE_DIR}"
+mkdir -p /root/capsule/results
 
+mode="analysis"
 prompt=""
 model=""
 effort=""
@@ -19,90 +40,55 @@ is_truthy() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --mode)
+      if [[ $# -gt 1 && "$2" != --* ]]; then mode="$2"; shift 2; else shift; fi
+      continue
+      ;;
+    --mode=*)
+      mode="${1#*=}"
+      ;;
     --update-claude)
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        update_value="$2"
-      else
-        update_value="1"
-      fi
-      if is_truthy "${update_value}"; then
-        claude update
-        updated_claude=true
-      fi
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        shift 2
-      else
-        shift
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then update_value="$2"; else update_value="1"; fi
+      if is_truthy "${update_value}"; then claude update; updated_claude=true; fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then shift 2; else shift; fi
       continue
       ;;
     --update-claude=*)
-      if is_truthy "${1#*=}"; then
-        claude update
-        updated_claude=true
-      fi
+      if is_truthy "${1#*=}"; then claude update; updated_claude=true; fi
       ;;
     --use-bedrock)
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        bedrock_value="$2"
-      else
-        bedrock_value="1"
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then bedrock_value="$2"; else bedrock_value="1"; fi
       is_truthy "${bedrock_value}" && use_bedrock=true
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        shift 2
-      else
-        shift
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then shift 2; else shift; fi
       continue
       ;;
     --use-bedrock=*)
       is_truthy "${1#*=}" && use_bedrock=true
       ;;
     --model)
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        model="$2"
-        shift 2
-      else
-        shift
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then model="$2"; shift 2; else shift; fi
       continue
       ;;
     --model=*)
       model="${1#*=}"
       ;;
     --effort)
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        effort="$2"
-        shift 2
-      else
-        shift
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then effort="$2"; shift 2; else shift; fi
       continue
       ;;
     --effort=*)
       effort="${1#*=}"
       ;;
     --max-budget-usd)
-      if [[ $# -gt 1 && "$2" != --* ]]; then
-        max_budget_usd="$2"
-        shift 2
-      else
-        shift
-      fi
+      if [[ $# -gt 1 && "$2" != --* ]]; then max_budget_usd="$2"; shift 2; else shift; fi
       continue
       ;;
     --max-budget-usd=*)
       max_budget_usd="${1#*=}"
       ;;
     --prompt)
-      if [[ $# -lt 2 ]]; then
-        echo "--prompt requires a value" >&2
-        exit 2
-      fi
-      prompt="$2"
-      shift 2
-      continue
+      if [[ $# -lt 2 ]]; then echo "--prompt requires a value" >&2; exit 2; fi
+      prompt="$2"; shift 2; continue
       ;;
     --prompt=*)
       prompt="${1#*=}"
@@ -114,33 +100,55 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ -n "${model}" ]]; then
-  claude_args+=(--model "${model}")
+# -----------------------------------------------------------------------------
+# ANALYSIS MODE (default) — no API key required
+# -----------------------------------------------------------------------------
+if [[ "${mode}" != "agent" ]]; then
+  echo "[run] mode=analysis (no Anthropic API key required)"
+  if [[ -x /root/capsule/code/run_analysis ]]; then
+    exec /root/capsule/code/run_analysis "${claude_args[@]:-}"
+  elif [[ -f /root/capsule/code/run_analysis ]]; then
+    exec bash /root/capsule/code/run_analysis "${claude_args[@]:-}"
+  else
+    echo "[run] No code/run_analysis found."
+    echo "[run] Add notebooks to code/notebooks/ or provide code/run_analysis to define"
+    echo "[run] the default reproducible pipeline. Nothing to do; exiting 0."
+    exit 0
+  fi
 fi
 
-if [[ -n "${effort}" ]]; then
-  claude_args+=(--effort "${effort}")
+# -----------------------------------------------------------------------------
+# AGENT MODE (opt-in) — requires ANTHROPIC_API_KEY (or Bedrock creds)
+# -----------------------------------------------------------------------------
+echo "[run] mode=agent (Claude Code headless run)"
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[run] ERROR: the 'claude' CLI is not installed in this environment." >&2
+  echo "[run] Agent mode is disabled. Add the Claude CLI in environment/postInstall," >&2
+  echo "[run] or use mode=analysis. See README.md." >&2
+  exit 3
 fi
 
-if [[ -n "${max_budget_usd}" ]]; then
-  claude_args+=(--max-budget-usd "${max_budget_usd}")
+if [[ "${use_bedrock}" != true && -z "${ANTHROPIC_API_KEY:-}" ]]; then
+  echo "[run] ERROR: agent mode requires the ANTHROPIC_API_KEY secret to be set" >&2
+  echo "[run] (or set --use-bedrock 1 with AWS credentials configured)." >&2
+  echo "[run] Add it under the capsule's secrets, or run with mode=analysis. See README.md." >&2
+  exit 4
 fi
 
-if [[ "${updated_claude}" != true ]]; then
-  (set -ex; claude --version)
-fi
+if [[ -n "${model}" ]]; then claude_args+=(--model "${model}"); fi
+if [[ -n "${effort}" ]]; then claude_args+=(--effort "${effort}"); fi
+if [[ -n "${max_budget_usd}" ]]; then claude_args+=(--max-budget-usd "${max_budget_usd}"); fi
+if [[ "${updated_claude}" != true ]]; then (set -ex; claude --version); fi
 
 if [[ -z "${prompt}" ]]; then
-  echo "No prompt supplied. Pass --prompt '...'" >&2
+  echo "[run] No prompt supplied. Pass --prompt '...' (agent mode)." >&2
   exit 2
 fi
 
-# ------------- set agent workspace dir --------------------
 # agents are reluctant to write outside of their cwd
 AGENT_DIR="${AGENT_DIR:-/root/capsule}"
-# ----------------------------------------------------------
 mkdir -p "$AGENT_DIR"
-mkdir -p /root/capsule/results
 
 # keep copies of Claude Code's config, skills, and run logs
 export CLAUDE_CONFIG_DIR="/root/capsule/results/.claude"

@@ -1,0 +1,25 @@
+{
+	"version": 1,
+	"attached_datasets": [
+		{
+			"id": "0f4bc4b0-fa1d-4da0-9b55-e0cc79edadf1",
+			"mount": "hcr_celltyping"
+		},
+		{
+			"id": "1d52b97f-6241-412b-b658-235c93942927",
+			"mount": "hcr_unmixing"
+		},
+		{
+			"id": "3380552b-5120-4c7a-be4e-81e08dc86323",
+			"mount": "behavior"
+		},
+		{
+			"id": "d40dc38d-1403-405b-a066-5517134ecea9",
+			"mount": "ophys"
+		},
+		{
+			"id": "f59062ef-9f80-4233-91b8-f74abe77949a",
+			"mount": "coreg"
+		}
+	]
+}

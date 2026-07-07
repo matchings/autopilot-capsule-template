@@ -1,0 +1,30 @@
+# Core scientific stack
+numpy
+pandas
+scipy
+matplotlib
+seaborn
+scikit-image
+scikit-learn
+
+# Notebook execution (analysis-mode reproducible runs)
+jupyter
+nbconvert
+papermill
+
+# Neurophysiology / NWB (ophys + behavior)
+pynwb
+hdmf
+h5py
+
+# HCR cell-by-gene tables
+anndata
+pyarrow
+
+# AWS / Code Ocean data access
+s3fs
+boto3
+fsspec
+
+# Config / IO
+pyyaml

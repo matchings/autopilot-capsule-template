@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# =============================================================================
+# Default analysis pipeline for reproducible runs. NO Anthropic API key needed.
+#
+# Out of the box this executes every notebook in code/notebooks/ and writes the
+# rendered notebooks to results/notebooks/, plus a copy of code/ to
+# results/code/ for reproducibility.
+#
+# Customize freely: replace the body with calls to your own scripts, a Snakemake
+# / Nextflow workflow, papermill parameterization, etc.
+# =============================================================================
+
+NPROC="${CO_CPUS:-$(nproc)}"
+echo "[run_analysis] using ${NPROC} CPUs"
+
+RESULTS=/root/capsule/results
+mkdir -p "${RESULTS}/notebooks" "${RESULTS}/code"
+
+shopt -s nullglob
+nbs=(/root/capsule/code/notebooks/*.ipynb)
+
+if [[ ${#nbs[@]} -eq 0 ]]; then
+  echo "[run_analysis] No notebooks in code/notebooks/ and no custom pipeline defined."
+  echo "[run_analysis] Edit code/run_analysis or add notebooks. Exiting 0."
+  exit 0
+fi
+
+for nb in "${nbs[@]}"; do
+  base="$(basename "${nb}")"
+  echo "[run_analysis] executing ${base}"
+  if command -v jupyter >/dev/null 2>&1; then
+    jupyter nbconvert --to notebook --execute \
+      --ExecutePreprocessor.timeout=-1 \
+      --output-dir "${RESULTS}/notebooks" "${nb}"
+  elif command -v papermill >/dev/null 2>&1; then
+    papermill "${nb}" "${RESULTS}/notebooks/${base}"
+  else
+    echo "[run_analysis] ERROR: neither jupyter nor papermill installed." >&2
+    echo "[run_analysis] Add them to code/requirements.txt (see README). " >&2
+    exit 5
+  fi
+done
+
+# snapshot the code used, for reproducibility
+cp -R /root/capsule/code/. "${RESULTS}/code/" 2>/dev/null || true
+echo "[run_analysis] done. Outputs in ${RESULTS}/"
