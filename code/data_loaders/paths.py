@@ -50,7 +50,7 @@ def inventory() -> "dict[str, list[str]]":
             groups["behavior"].append(p.name)
         elif "ophys" in n or "meso" in n or "pophys" in n:
             groups["ophys"].append(p.name)
-        elif "cell-typing" in n or "cell_typing" in n:
+        elif "celltyping" in n or "cell-typing" in n or "cell_typing" in n:
             groups["hcr_celltyping"].append(p.name)
         elif "unmix" in n:
             groups["hcr_unmixing"].append(p.name)

@@ -29,8 +29,13 @@ CELLTYPE_KEYS = [
 def find_cell_typing_tables() -> list[Path]:
     """The <subject>_cell_typing_table.csv files (internal asset)."""
     hits: list[Path] = []
-    for asset in paths.find_assets("cell-typing") + paths.find_assets("cell_typing"):
-        hits += paths.find_files("*cell_typing_table.csv", asset)
+    seen = set()
+    for pat in ("celltyping", "cell-typing", "cell_typing"):
+        for asset in paths.find_assets(pat):
+            if asset in seen:
+                continue
+            seen.add(asset)
+            hits += paths.find_files("*cell_typing_table.csv", asset)
     return sorted(set(hits))
 
 
